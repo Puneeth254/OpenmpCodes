@@ -1,0 +1,167 @@
+function preflow(Graph g, node s, propNode<int>height, propNode<int>excess_flow, propNode<bool>active, propEdge<int>flow, propEdge<int>capacity){
+    s.height = g.num_nodes();
+    forall(v in g.neighbors(s)){
+        edge e = g.get_edge(s, v);
+        e.flow = e.capacity;
+        v.excess_flow = v.excess_flow + e.flow;
+        edge rev = g.get_edge(v, s);
+        rev.flow = rev.flow - e.flow;
+        v.active = True;
+    }
+}
+
+
+function globalRelabel(Graph g, node s, node t, propNode<int>height, propEdge<int>capacity, propEdge<int>flow){
+    forall(v in g.nodes()){
+        v.height = g.num_nodes();
+    }
+    t.height = 0;
+    int qsize = 1;
+    propNode<int>inqueue;
+    propNode<int>discovered;
+    g.attachNodeProperty(inqueue = 0, discovered = 0);
+    t.inqueue = 1;
+
+    while(qsize){
+        forall(v in g.nodes()){
+            if(v.inqueue){
+                for(u in g.neighbors(v)){
+                    edge e = g.get_edge(v, u);
+                    edge rev = g.get_edge(u, v);
+                    if(rev.capacity - rev.flow > 0 && u.height == g.num_nodes() && u != s){
+                        // int doNotProceed = 0;
+                        // doNotProceed = u.discovered;
+                        u.discovered = 1;
+                        if(u != t){
+                            u.height = v.height + 1;
+                        }
+                    }
+                }
+            }
+        }
+        qsize = 0;
+
+        forall(v in g.nodes()){
+            v.inqueue = v.discovered;
+            v.discovered = 0;
+            if(v.inqueue){
+                qsize += 1;
+            }
+        }
+    }
+}
+
+function push_flow(Graph g, node v, node t, propNode<int>height, propEdge<int>capacity, propEdge<int>flow, propNode<int>excess_flow, propNode<int>added_excess, propNode<int>discovered){
+    bool stop = False;
+    for(u in g.neighbors(v).filter(stop == False)){
+        edge e = g.get_edge(v, u);
+        edge rev = g.get_edge(u, v);
+        if((v.height == u.height + 1) && (e.capacity - e.flow > 0)){
+            int f = min(e.capacity - e.flow, v.excess_flow);
+            v.excess_flow = v.excess_flow - f;
+            
+            u.added_excess = u.added_excess + f;
+            e.flow = e.flow + f;
+            rev.flow = rev.flow - f;
+            if(u != t){
+                u.discovered = True;
+            }
+
+            if(v.excess_flow == 0){
+                stop = True;
+            }
+        }
+    }
+}
+
+function cal_new_height(Graph g, node v, propEdge<int>capacity, propEdge<int>flow, propNode<int>height){
+    int n = g.num_nodes() - 1;
+    for(u in g.neighbors(v)){
+        edge e = g.get_edge(v, e);
+        if(e.capacity != e.flow){
+            n = min(n, u.height);
+        }
+    }
+    return n + 1;
+}
+
+function relabel(Graph g, node v, propNode<int>excess_flow, propNode<int>height, propNode<int>new_height, propNode<int>discovered, propEdge<int>capacity, propEdge<int>flow){
+    if(v.excess_flow > 0 || v.height == g.num_nodes()){
+        v.new_height = cal_new_height(g, v, capacity, flow, height);
+        if(v.new_height != g.num_nodes() && v.new_height != v.height){
+            v.discovered = True;
+        }
+    }
+    else{
+        v.new_height = v.height;
+    }
+}
+
+function maxflow(Graph g, node s, node t, propEdge<int>weight){
+    int count = 0;
+    propNode<int>height;
+    propNode<int>new_height;
+    propNode<int>excess_flow;
+    propNode<bool>active;
+    propNode<int>discovered;
+    propNode<int>added_excess;
+    propEdge<int>capacity;
+    propEdge<int>flow;
+    
+    g.attachNodeProperty(height = 0, new_height = 0, excess_flow = 0, active = False, discovered = 0, added_excess = 0);
+    forall(e in g.edges()){
+        e.capacity = e.weight;
+        e.flow = 0;
+    }
+
+    preflow(g, s, height, excess_flow, active, flow, capacity);
+    int active_count = g.count_outNbrs(s);
+    while(active_count){
+        if(count % 4 == 0){
+            globalRelabel(g, s, t, height, capacity, flow);
+        }
+        count++;
+        
+        forall(v in g.nodes()){
+            if(v.active){
+                push_flow(g, v, t, height, capacity, flow, excess_flow, added_excess, discovered);
+            }
+        }
+
+        forall(v in g.nodes()){
+            if(v.active){
+                relabel(g, v, excess_flow, height, new_height, discovered, capacity, flow);
+            }
+        }
+
+        forall(v in g.nodes()){
+            if(v.active){
+                v.height = v.new_height;
+                int num = v.added_excess;
+                v.excess_flow += num;
+                v.added_excess = 0;
+            }
+        }
+
+        active_count = 0;
+
+        forall(v in g.nodes()){
+            if(v.height < g.num_nodes() && v.discovered){
+                v.active = True;
+                active_count += 1;
+            }
+            else{
+                v.active = False;
+            }
+            v.discovered = False;
+        }
+
+        forall(v in g.nodes()){
+            if(v.active){
+                v.excess_flow += v.added_excess;
+                v.added_excess = 0;
+            }
+        }
+    }
+    return t.added_excess + t.excess_flow;
+}
