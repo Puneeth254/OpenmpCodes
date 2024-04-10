@@ -87,7 +87,6 @@ function quicksi(container<int>degree, container<container<int>>records, Graph g
                     index++;
                 }
                 if(flag){
-                    critical
                     H[d] = v;
                     v.F = 1;
 
