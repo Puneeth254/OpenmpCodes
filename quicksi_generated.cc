@@ -78,9 +78,8 @@ auto qi_seq(std::vector<int> degree , std::vector<int> edges , int n , int* pare
   return records;
 
 }
-bool res = false;
 auto quicksi(std::vector<int> degree , std::vector<std::vector<int>> records , graph& g , int d , 
-  int* H , int* F)
+  std::vector<int> H , std::vector<int> F)
 {
   if (d >= records.size() )
     {
@@ -88,12 +87,13 @@ auto quicksi(std::vector<int> degree , std::vector<std::vector<int>> records , g
   }
   std::vector<int> temp;
   temp = records[d];
+  bool res = false;
   int par = temp.back();
-  // #pragma omp parallel for default(shared) private(H, F)
+  //The firstprivate clause is manually added
+  #pragma omp parallel for firstprivate(H,F)
   for (int v = 0; v < g.num_nodes(); v ++) 
   {
-    // std::cout<<"HEY\n";
-    if (!res && F[v] == 0 && ((d == 0) || (d > 0 && (par == -1 || (par != -1 && g.check_if_nbr(H[par],v))))) )
+    if (!res && ((d == 0 && F[v] == 0) || (d > 0 && F[v] == 0 && (par == -1 || (par != -1 && g.check_if_nbr(H[par],v))))) )
       {
       if (g.getOutDegree(v) >= degree[d] )
         {
@@ -110,85 +110,19 @@ auto quicksi(std::vector<int> degree , std::vector<std::vector<int>> records , g
           }
           index++;
         }
-        // std::cout<<"HI\n";
         if (flag )
           {
-            H[d] = v;
-            F[v] = 1;
-            if (quicksi(degree,records,g,d + 1,H,F) )
-              {
-              res = true;
-            }
-            F[v] = 0;
+          H[d] = v;
+          F[v] = 1;
+          if (quicksi(degree,records,g,d + 1,H,F) )
+            {
+            res = true;
+          }
+          F[v] = 0;
         }
       }
     }
   }
   return res;
 
-}
-
-int32_t main(int argc, char* argv[]){
-
-    int v, e;
-    std::cin >> v >> e;
-    std::cout<<v<<" "<<e<<std::endl;
-    std::vector<int>degree(v, 0);
-    std::vector<int>edges;
-    std::vector<std::vector<int>>all_edges(v);
-    for(int i = 0; i < e; i++){
-      int x, y;
-      std::cin>>x>>y;
-      all_edges[x].push_back(y);
-      degree[x]++;
-    }
-
-    for(int i = 0; i < v; i++){
-      for(auto j : all_edges[i]){
-        edges.push_back(j);
-      }
-    }
-
-
-    int* parent = (int*)malloc((v + 1) * sizeof(int));
-    int* rnk = (int*)malloc((v + 1) * sizeof(int));
-    
-    for(int i = 0 ; i < v; i++){
-      parent[i] = i;
-      rnk[i] = 0;
-    }
-    std::vector<std::vector<int>>records = qi_seq(degree, edges, v, parent, rnk);
-
-    std::cout<<"Seq Done\n";
-
-    graph G("dataset/input2.txt");
-    G.parseGraph();
-    std::cout<<G.num_nodes()<<" "<<G.num_edges()<<std::endl;
-
-    int* F = (int*)malloc(G.num_nodes() * sizeof(int));
-
-    int* H = (int*)malloc(G.num_nodes() * sizeof(int));
-    #pragma omp parallel for
-    for(int i = 0 ; i < G.num_nodes(); i++){
-      F[i] = 0;
-      H[i] = -1;
-    }
-
-    std::cout<<"Start quicksi\n";
-    double t1=omp_get_wtime();
-    bool res = quicksi(degree, records, G, 0, H, F);
-    double t2=omp_get_wtime();
-    for(int i = 0 ; i < v; i++){
-      std::cout<<H[i]<<" ";
-    }
-    std::cout<<"\n";
-    if(res){
-      std::cout<<"YES\n";
-    }
-    else{
-      std::cout<<"NO\n";
-    }
-    std::cout<<t2 - t1<<std::endl;
-
-    return 0;
 }
